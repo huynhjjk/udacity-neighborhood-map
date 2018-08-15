@@ -1,7 +1,5 @@
 let map;
 let markers = [];
-const apiUrl = 'https://api.flickr.com/services/rest/?method=flickr.photos.search&format=json&nojsoncallback=1&radius=0.003048';
-const flickrKey = 'f49f28d355392ecf3d26976a59482299';
 const locations = [{
         title: 'Washington Park Arboretum',
         location: {
@@ -52,6 +50,12 @@ const locations = [{
     }
 ];
 
+/**
+ * @description catch Google map errors
+ */
+function catchGoogleError() {
+ alert('Uh oh! Unable to open Google Maps');
+}
 
 /**
  * @description render Google maps with supplied markers
@@ -104,15 +108,10 @@ function initMap() {
  * @param {object} marker contains details about a location
  */
 function toggleBounce(marker) {
-    for (let i = 0; i < markers.length; i++) {
-        if (marker != markers[i]) {
-            // stop animation for other markers
-            markers[i].setAnimation(null);
-        } else {
-            // animate (bounce) the selected marker
-            marker.setAnimation(google.maps.Animation.BOUNCE);
-        }
-    }
+    marker.setAnimation(google.maps.Animation.BOUNCE);
+    setTimeout(() => {
+        marker.setAnimation(null);
+    }, 2000);
 }
 
 /**
@@ -130,44 +129,47 @@ function showAll() {
  * @param {object} infowindow - object containing popup details
  */
 function populateInfoWindow(marker, infowindow) {
-    // Check to make sure the infowindow is not already opened on this marker.
-    if (infowindow.marker != marker) {
-        // call 3rd party api to get details about location
-        const $promise = callApi(marker);
-        $promise.done(function(data) {
-            if (data.stat === 'ok' && data.photos.photo.length > 0) {
-                infowindow.marker = marker;
-                const photoId = data.photos.photo[0].id;
-                const photoSecret = data.photos.photo[0].secret;
-                const photoServer = data.photos.photo[0].server;
-                const photoFarm = data.photos.photo[0].farm;
-                const imagePath = 'https://farm' + photoFarm +
-                    '.staticflickr.com/' + photoServer +
-                    '/' + photoId + '_' +
-                    photoSecret + '.jpg';
-                const container = '<div><div class="my-2">' + marker.title + '</div>' +
-                    '<img class="img-fluid" width="150" height="150" src=' + imagePath + ' />' +
-                    '<div class="my-2">Powered by <a target="_blank" href="https://www.flickr.com/">Flickr</a></div>' +
-                    '</div>';
-                infowindow.setContent(container);
-                infowindow.open(map, marker);
-                // Make sure the marker property is cleared if the infowindow is closed.
-                infowindow.addListener('closeclick', function() {
-                    infowindow.setMarker = null;
-                });
-            } else {
-                if (data.stat !== 'ok') {
-                    alert('Error fetching photo for ' +
-                        marker.title + '. Code: ' +
-                        data.code + ', Message: ' + data.message);
-                } else {
-                    alert('No photos found at coordinates for ' + marker.title);
-                }
-            }
-        }).fail(function(xhr) {
-            alert('Error fetching photo for ' + marker.title);
-        });
+    // Retrigger info window if clicked again. Prevent flickr call from calling the same marker twice
+    if (infowindow.marker == marker) {
+        infowindow.open(map, marker);
+        return;
     }
+
+    // call 3rd party api to get details about location
+    const $promise = callApi(marker);
+    $promise.done(function(data) {
+        if (data.stat === 'ok' && data.photos.photo.length > 0) {
+            infowindow.marker = marker;
+            const photoId = data.photos.photo[0].id;
+            const photoSecret = data.photos.photo[0].secret;
+            const photoServer = data.photos.photo[0].server;
+            const photoFarm = data.photos.photo[0].farm;
+            const imagePath = 'https://farm' + photoFarm +
+                '.staticflickr.com/' + photoServer +
+                '/' + photoId + '_' +
+                photoSecret + '.jpg';
+            const container = '<div><div class="my-2">' + marker.title + '</div>' +
+                '<img class="img-fluid" width="150" height="150" src=' + imagePath + ' />' +
+                '<div class="my-2">Powered by <a target="_blank" href="https://www.flickr.com/">Flickr</a></div>' +
+                '</div>';
+            infowindow.setContent(container);
+            infowindow.open(map, marker);
+            // Make sure the marker property is cleared if the infowindow is closed.
+            infowindow.addListener('closeclick', function() {
+                infowindow.setMarker = null;
+            });
+        } else {
+            if (data.stat !== 'ok') {
+                alert('Error fetching photo for ' +
+                    marker.title + '. Code: ' +
+                    data.code + ', Message: ' + data.message);
+            } else {
+                alert('No photos found at coordinates for ' + marker.title);
+            }
+        }
+    }).fail(function(xhr) {
+        alert('Error fetching photo for ' + marker.title);
+    });
 }
 
 /**
@@ -175,6 +177,8 @@ function populateInfoWindow(marker, infowindow) {
  * @param {object} selectedMarker - the current marker selected
  */
 function callApi(selectedMarker) {
+    const apiUrl = 'https://api.flickr.com/services/rest/?method=flickr.photos.search&format=json&nojsoncallback=1&radius=0.003048';
+    const flickrKey = 'f49f28d355392ecf3d26976a59482299';    
     const limit = 1;
     const lat = selectedMarker.position.lat();
     const lng = selectedMarker.position.lng();
